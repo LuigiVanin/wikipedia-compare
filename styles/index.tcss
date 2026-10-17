@@ -1,0 +1,68 @@
+WikiHeader {
+  dock: top;
+  height: 6;
+  background: $boost;
+  border: $foreground;
+}
+
+#title {
+  width: 1fr;
+  height: 1;
+  padding: 0 2;
+  margin-top: 0;
+  text-style: bold;
+}
+
+#search-box {
+  margin: 0 1;
+  width: 1fr;
+
+  background: $surface;
+  border: tall transparent;
+  height: 3;
+}
+
+#search-box:focus-within {
+  border: tall $primary;
+  background-tint: $foreground 5%;
+}
+
+#search-box__prefix {
+  padding: 0 2;
+}
+
+#search-box__input {
+  width: 1fr;
+  border: none;
+  height: 1;
+  padding-left: 0;
+}
+
+#wiki-main {
+  width: 1fr;
+  /* height: 20; */
+}
+
+.wiki-main__content-panel {
+  width: 0.6fr;
+  border-right: $foreground;
+}
+
+.wiki-main__links-panel {
+  width: 0.4fr;
+  max-width: 50;
+}
+
+SearchModal {
+  align: center middle;
+}
+
+#search-modal {
+  width: 60%;
+  max-width: 80;
+  height: auto;
+  max-height: 80%;
+  padding: 1 2;
+  background: $surface;
+  border: thick $primary;
+}
