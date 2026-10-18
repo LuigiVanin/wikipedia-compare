@@ -271,8 +271,6 @@ class WikiApp(App):
     ) -> None:
         self.notify("Buscando links dos artigos...")
 
-        # o client é síncrono (requests), então cada chamada roda em uma thread
-        # e o gather aguarda as duas em paralelo
         try:
             self.links_1, self.links_2 = await asyncio.gather(
                 asyncio.to_thread(client.fetch_all_links, article_1.pageid),
