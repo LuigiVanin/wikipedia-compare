@@ -1,6 +1,14 @@
 import asyncio
+from dataclasses import dataclass
 
 from client import WikiClient, WikiLink
+
+
+@dataclass
+class CompareResult:
+    links_map: dict[int, WikiLink] = {}
+    colisions: list[int] = []
+    links: dict[int, list[int]] = {}
 
 
 class WikiCompareEngine:
@@ -22,20 +30,27 @@ class WikiCompareEngine:
     def compare_links(
         self, article_1: list[WikiLink], article_2: list[WikiLink]
     ) -> tuple[dict[int, WikiLink], list[int]]:
-        unified_hashmap: dict[int, WikiLink] = {}
+        links_map: dict[int, WikiLink] = {}
         colisions: list[int] = []
 
         for link in [*article_1, *article_2]:
-            if unified_hashmap.get(link.pageid) is not None:
+            if links_map.get(link.pageid) is not None:
                 colisions.append(link.pageid)
 
-            unified_hashmap[link.pageid] = link
+            links_map[link.pageid] = link
 
-        return unified_hashmap, colisions
+        return links_map, colisions
 
-    async def compare(
-        self, pageid_1: int, pageid_2: int
-    ) -> tuple[dict[int, WikiLink], list[int]]:
+    async def compare(self, pageid_1: int, pageid_2: int) -> CompareResult:
         link_1, link_2 = await self.fetch_links(pageid_1, pageid_2)
 
-        return self.compare_links(link_1, link_2)
+        links_map, colisions = self.compare_links(link_1, link_2)
+
+        return CompareResult(
+            links_map,
+            colisions,
+            links={
+                pageid_1: [link.pageid for link in link_1],
+                pageid_2: [link.pageid for link in link_2],
+            },
+        )
