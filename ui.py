@@ -58,8 +58,6 @@ class WikiMain(VerticalGroup):
         collisions.display = False
         yield collisions
 
-        # yield Markdown(MARKDOWN_TEMPLATE, classes="wiki-content")
-
     async def show_loading(self, title_1: str, title_2: str) -> None:
         self.query_one("#wiki__title", Label).update(
             f'Buscando links em comum entre "{title_1}" e "{title_2}"...'
@@ -320,8 +318,8 @@ class WikiApp(App):
     collisions: reactive[list[int]] = reactive([])
     links_map: reactive[dict[int, WikiLink]] = reactive({})
 
-    links_1: list[WikiLink] = []
-    links_2: list[WikiLink] = []
+    # links_1: list[WikiLink] = []
+    # links_2: list[WikiLink] = []
 
     def action_focus_search(self) -> None:
         self.query_one("#search-box__input--1", Input).focus()
@@ -366,9 +364,19 @@ class WikiApp(App):
         )
 
     @on(Button.Pressed, "#header-actions__reset")
-    def reset_data(self):
+    async def reset_data(self):
         self.article_1 = None
         self.article_2 = None
+        self.collisions = []
+        self.links_map = {}
+        self.query_one("#wiki__loading", LoadingIndicator).display = False
+        collisions = self.query_one("#wiki__collisions", ListView)
+        collisions.display = False
+        await collisions.clear()
+
+        self.query_one("#wiki__title", Label).update(
+            "Nenhum artigo buscado para comparar"
+        )
 
         for i in range(0, 2):
             element = self.query_one(f"#search-box__input--{i+1}", Input)
@@ -409,8 +417,8 @@ class WikiApp(App):
             self.notify(f"Erro ao buscar links: {error}", severity="error")
             return
 
-        self.links_1 = [result.links_map[pid] for pid in result.links[article_1.pageid]]
-        self.links_2 = [result.links_map[pid] for pid in result.links[article_2.pageid]]
+        links_1 = [result.links_map[pid] for pid in result.links[article_1.pageid]]
+        links_2 = [result.links_map[pid] for pid in result.links[article_2.pageid]]
 
         self.notify(
             f"{article_1.title}: {len(result.links[article_1.pageid])} links | "
