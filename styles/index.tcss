@@ -102,6 +102,36 @@ SearchModal {
   max-height: 15;
 }
 
+# ---
+
+WikiModal {
+  align: center middle;
+}
+
+
+#wiki-modal {
+  width: 75%;
+  max-width: 200;
+  height: auto;
+  max-height: 80%;
+  padding: 1 2;
+  background: $surface;
+  border: thick $primary;
+}
+
+#wiki-modal__title {
+  margin-bottom: 1;
+}
+
+#wiki-modal__loading {
+  height: 3;
+}
+
+#wiki-modal__results {
+  height: auto;
+  max-height: 15;
+}
+
 Wiki {
   height: 1fr;
 }

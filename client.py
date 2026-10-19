@@ -129,3 +129,17 @@ class WikiClient:
                 return links
 
             cont = data["continue"]
+
+    def fetch_content_text(self, pageid: int) -> str:
+        params = {
+            "action": "query",
+            "format": "json",
+            "formatversion": 2,
+            "prop": "extracts",
+            "explaintext": 1,
+            "pageids": pageid,
+        }
+
+        response = requests.get(self.BASE_URL, params=params, headers=self.headers)
+
+        return response.json()["query"]["pages"][0].get("extract", "")

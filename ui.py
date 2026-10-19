@@ -22,6 +22,7 @@ from textual.widgets import (
     ListView,
     LoadingIndicator,
     Markdown,
+    Static,
 )
 
 from client import WikiClient, WikiItem, WikiLink
@@ -83,7 +84,8 @@ class WikiMain(VerticalGroup):
 
         list_view = self.query_one("#wiki__collisions", ListView)
         await list_view.extend(
-            ListItem(Label(link.title, markup=False)) for link in links
+            ListItem(Label(link.title, markup=False), id=f"link-{link.pageid}")
+            for link in links
         )
         list_view.display = True
         list_view.index = 0
@@ -92,6 +94,87 @@ class WikiMain(VerticalGroup):
     def show_error(self, error: Exception) -> None:
         self.query_one("#wiki__loading", LoadingIndicator).display = False
         self.query_one("#wiki__title", Label).update(f"Erro ao buscar links: {error}")
+
+
+class WikiModal(ModalScreen[int | None]):
+    pageid: int
+    # `title` já é um reactive do Screen no Textual
+    article_title: str
+
+    content: str = ""
+
+    BINDINGS = [
+        Binding(
+            key="escape", action="dismiss", description="Dismiss Modal", priority=True
+        ),
+    ]
+
+    def __init__(
+        self,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+        pageid: int | None = None,
+        title: str | None = None,
+    ) -> None:
+
+        super().__init__(name, id, classes)
+
+        if pageid is not None:
+            self.pageid = pageid
+
+        self.article_title = title or ""
+
+    def on_mount(self) -> None:
+        self.fetch_content()
+
+    @work(thread=True, exclusive=True)
+    def fetch_content(self) -> None:
+        try:
+            self.content = client.fetch_content_text(self.pageid)
+        except Exception as error:
+            self.app.call_from_thread(self.show_error, error)
+            return
+
+        self.app.call_from_thread(self.show_content, self.content)
+
+    def show_content(self, content: str):
+        self.query_one("#wiki-modal__loading", LoadingIndicator).display = False
+
+        title = self.query_one("#wiki-modal__title", Label)
+        title.update(self.article_title)
+
+        if not content:
+            title.update(f'Nenhum conteúdo encontrado para "{self.article_title}"')
+            return
+
+        self.query_one("#wiki-modal__content__text", Static).update(content)
+
+        container = self.query_one("#wiki-modal__content", VerticalScroll)
+        container.display = True
+        container.focus()
+
+    def show_error(self, error: Exception):
+        self.query_one("#wiki-modal__loading", LoadingIndicator).display = False
+        self.query_one("#wiki-modal__title", Label).update(
+            f"Erro ao buscar artigo: {error}"
+        )
+
+    def compose(self):
+        with Vertical(id="wiki-modal"):
+            yield Label(
+                f'Buscando artigo "{self.article_title}"...',
+                id="wiki-modal__title",
+                markup=False,
+            )
+            yield LoadingIndicator(id="wiki-modal__loading")
+
+            content = VerticalScroll(
+                VerticalGroup(Static(id="wiki-modal__content__text", markup=False)),
+                id="wiki-modal__content",
+            )
+            content.display = False
+            yield content
 
 
 class SearchModal(ModalScreen[SearchSelection | None]):
@@ -234,6 +317,9 @@ class WikiApp(App):
     article_1: reactive[WikiItem | None] = reactive(None)
     article_2: reactive[WikiItem | None] = reactive(None)
 
+    collisions: reactive[list[int]] = reactive([])
+    links_map: reactive[dict[int, WikiLink]] = reactive({})
+
     links_1: list[WikiLink] = []
     links_2: list[WikiLink] = []
 
@@ -331,10 +417,25 @@ class WikiApp(App):
             f"{article_2.title}: {len(result.links[article_2.pageid])} links"
         )
 
-        # dict.fromkeys remove pageids repetidos mantendo a ordem
+        self.collisions = result.colisions
+        self.links_map = result.links_map
+
         collisions = [result.links_map[pid] for pid in dict.fromkeys(result.colisions)]
+
         collisions.sort(key=lambda link: link.title)
+
         await wiki.show_collisions(article_1.title, article_2.title, collisions)
+
+    @on(ListView.Selected, "#wiki__collisions")
+    def list_item_select(self, event: ListView.Selected):
+        # o id do item é "link-<pageid>" (ids do Textual não podem começar com número)
+        selected_pageid = int(cast(str, event.item.id).removeprefix("link-"))
+        link = self.links_map[selected_pageid]
+
+        self.push_screen(
+            WikiModal(pageid=link.pageid, title=link.title),
+            # self.on_select_search_result,
+        )
 
     def compose(self) -> ComposeResult:
         yield WikiHeader(name="app header")
