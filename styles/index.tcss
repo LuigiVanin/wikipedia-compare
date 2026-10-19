@@ -101,3 +101,19 @@ SearchModal {
   height: auto;
   max-height: 15;
 }
+
+Wiki {
+  height: 1fr;
+}
+
+#wiki__title {
+  margin-bottom: 1;
+}
+
+#wiki__loading {
+  height: 3;
+}
+
+#wiki__collisions {
+  height: 1fr;
+}

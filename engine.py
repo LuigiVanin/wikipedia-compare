@@ -1,14 +1,14 @@
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from client import WikiClient, WikiLink
 
 
 @dataclass
 class CompareResult:
-    links_map: dict[int, WikiLink] = {}
-    colisions: list[int] = []
-    links: dict[int, list[int]] = {}
+    links_map: dict[int, WikiLink] = field(default_factory=dict)
+    colisions: list[int] = field(default_factory=list)
+    links: dict[int, list[int]] = field(default_factory=dict)
 
 
 class WikiCompareEngine:

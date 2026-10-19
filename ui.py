@@ -25,6 +25,7 @@ from textual.widgets import (
 )
 
 from client import WikiClient, WikiItem, WikiLink
+from engine import CompareResult, WikiCompareEngine
 
 SEARCH_LIMIT = 5
 
@@ -43,12 +44,54 @@ class SearchSelection:
     input_id: str
 
 
-class Wiki(HorizontalGroup):
+class WikiMain(VerticalGroup):
     def compose(self) -> ComposeResult:
 
-        yield Label("Nenhum artigo buscado para comparar")
+        yield Label("Nenhum artigo buscado para comparar", id="wiki__title")
+
+        loading = LoadingIndicator(id="wiki__loading")
+        loading.display = False
+        yield loading
+
+        collisions = ListView(id="wiki__collisions")
+        collisions.display = False
+        yield collisions
 
         # yield Markdown(MARKDOWN_TEMPLATE, classes="wiki-content")
+
+    async def show_loading(self, title_1: str, title_2: str) -> None:
+        self.query_one("#wiki__title", Label).update(
+            f'Buscando links em comum entre "{title_1}" e "{title_2}"...'
+        )
+        self.query_one("#wiki__loading", LoadingIndicator).display = True
+
+        list_view = self.query_one("#wiki__collisions", ListView)
+        list_view.display = False
+        await list_view.clear()
+
+    async def show_collisions(
+        self, title_1: str, title_2: str, links: list[WikiLink]
+    ) -> None:
+        self.query_one("#wiki__loading", LoadingIndicator).display = False
+        title = self.query_one("#wiki__title", Label)
+
+        if not links:
+            title.update(f'Nenhum link em comum entre "{title_1}" e "{title_2}"')
+            return
+
+        title.update(f'{len(links)} links em comum entre "{title_1}" e "{title_2}"')
+
+        list_view = self.query_one("#wiki__collisions", ListView)
+        await list_view.extend(
+            ListItem(Label(link.title, markup=False)) for link in links
+        )
+        list_view.display = True
+        list_view.index = 0
+        list_view.focus()
+
+    def show_error(self, error: Exception) -> None:
+        self.query_one("#wiki__loading", LoadingIndicator).display = False
+        self.query_one("#wiki__title", Label).update(f"Erro ao buscar links: {error}")
 
 
 class SearchModal(ModalScreen[SearchSelection | None]):
@@ -178,12 +221,6 @@ class WikiHeader(VerticalGroup):
             yield Button("Comparar", id="header-actions__comparer")
 
 
-class WikiMain(Horizontal):
-    def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="wiki-main__content-panel"):
-            yield Wiki()
-
-
 class WikiApp(App):
     BINDINGS = [
         Binding(key="q", action="quit", description="Quit App", priority=True),
@@ -271,23 +308,38 @@ class WikiApp(App):
     ) -> None:
         self.notify("Buscando links dos artigos...")
 
+        wiki = self.query_one(WikiMain)
+        await wiki.show_loading(article_1.title, article_2.title)
+
+        engine = WikiCompareEngine(client)
+        result: CompareResult | None = None
+
         try:
-            self.links_1, self.links_2 = await asyncio.gather(
-                asyncio.to_thread(client.fetch_all_links, article_1.pageid),
-                asyncio.to_thread(client.fetch_all_links, article_2.pageid),
-            )
+
+            result = await engine.compare(article_1.pageid, article_2.pageid)
+
         except Exception as error:
+            wiki.show_error(error)
             self.notify(f"Erro ao buscar links: {error}", severity="error")
             return
 
+        self.links_1 = [result.links_map[pid] for pid in result.links[article_1.pageid]]
+        self.links_2 = [result.links_map[pid] for pid in result.links[article_2.pageid]]
+
         self.notify(
-            f"{article_1.title}: {len(self.links_1)} links | "
-            f"{article_2.title}: {len(self.links_2)} links"
+            f"{article_1.title}: {len(result.links[article_1.pageid])} links | "
+            f"{article_2.title}: {len(result.links[article_2.pageid])} links"
         )
+
+        # dict.fromkeys remove pageids repetidos mantendo a ordem
+        collisions = [result.links_map[pid] for pid in dict.fromkeys(result.colisions)]
+        collisions.sort(key=lambda link: link.title)
+        await wiki.show_collisions(article_1.title, article_2.title, collisions)
 
     def compose(self) -> ComposeResult:
         yield WikiHeader(name="app header")
-        yield WikiMain(name="wiki main", id="wiki-main")
+        with VerticalScroll(classes="wiki-main__content-panel"):
+            yield WikiMain(name="wiki main", id="wiki-main")
 
 
 if __name__ == "__main__":
